@@ -9,7 +9,7 @@
 #define HIDE_IGNORE_MSG
 #define EI_NOTEXTERNAL
 
-#ifndef ARDUINO_ARCH_ESP32
+#if ( !(defined ARDUINO_ARCH_ESP32) && !(defined __AVR_ATmega128__))
   #include <EnableInterrupt.h>
   #include <LowPower.h>
 #endif
@@ -20,6 +20,16 @@
 #include <MultiChannelDevice.h>
 #include <Switch.h>
 #include <WS2812FX.h>
+
+#ifdef __AVR_ATmega128__
+  //#include <MemoryFree.h>
+  #define CONFIG_BUTTON_PIN   7 //PE7
+  #define WSLED_PIN          15 //PB7
+  #define WSLED_ACTIVATE_PIN 28 //PC0 (Pin35)
+  #define ONBOARD_LED_PIN1   22 //PD4
+  #define CC1101_CS           8 //PB0
+  #define CC1101_GDO0         6 //PE6
+#endif
 
 #ifdef __AVR_ATmega328P__
   #define CONFIG_BUTTON_PIN   8
@@ -58,7 +68,7 @@ WS2812FX ws2812fx(30, WSLED_PIN, NEO_GRBW + NEO_KHZ800);
 using namespace as;
 
 const struct DeviceInfo PROGMEM devinfo = {
-  {0xF3, 0x52, 0x01},     // Device ID
+  {0xF3, 0x52, 0x00},     // Device ID
   "JPLEDFX001",           // Device Serial
   {0xF3, 0x52},           // Device Model
   0x10,                   // Firmware Version
@@ -92,7 +102,7 @@ class LEDList1 : public RegList1<LEDReg1> {
     }
 };
 
-DEFREGISTER(OUReg3, SWITCH_LIST3_STANDARD_REGISTER, PREG_ACTTYPE, PREG_ACTNUM, PREG_ACTCOLOR_R, PREG_ACTCOLOR_G, PREG_ACTCOLOR_B, PREG_ACTCOLOR_W, PREG_ACTINTENS);
+DEFREGISTER(OUReg3, SWITCH_LIST3_STANDARD_REGISTER, PREG_ACTTYPE, PREG_ACTNUM, PREG_ACTCOLOR_R, PREG_ACTCOLOR_G, PREG_ACTCOLOR_B, PREG_ACTCOLOR_W, PREG_ACTINTENS, PREG_ACTOPTIONS);
 typedef RegList3<OUReg3> SwPeerListEx;
 class OUList3 : public SwitchList3Tmpl<SwPeerListEx> {
   public:
@@ -116,14 +126,14 @@ uint8_t  channel2segnum[NUM_CHANNELS];
 uint8_t  segmentStart[NUM_CHANNELS];
 uint8_t  segmentEnd[NUM_CHANNELS];
 uint8_t  segmentCount = 0;
+bool     segmentState[NUM_CHANNELS];
 
 void __attribute__((weak)) calculateLedCount();
 
-uint16_t triwave16(uint16_t in) {
+/*uint16_t triwave16(uint16_t in) {
   if ((uint16_t)in < 0x8000) return in *2UL;
   return 0xFFFF - ((uint16_t)in - 0x8000)*2UL;
-}
-
+}*/
 
 uint16_t spots_base(void) {
   uint16_t threshold = (255 - (ws2812fx.getSpeed() / 255)) << 8;
@@ -133,12 +143,12 @@ uint16_t spots_base(void) {
   uint16_t zoneLen = ws2812fx.getLength() / zones;
   uint16_t offset = (ws2812fx.getLength() - zones * zoneLen) >> 1;
 
-  for (uint16_t z = 0; z < zones; z++)
-  {
+  for (uint16_t z = 0; z < zones; z++) {
     uint16_t pos = offset + z * zoneLen;
-    for (uint16_t i = 0; i < zoneLen; i++)
-    {
-      uint16_t wave = triwave16(((uint32_t)i * 0xFFFF) / (uint32_t)zoneLen);
+    for (uint16_t i = 0; i < zoneLen; i++) {
+      uint32_t in = ((uint32_t)i * 0xFFFF) / (uint32_t)zoneLen;
+      //uint16_t wave = triwave16(in);
+      uint16_t wave = (uint16_t)in < 0x8000 ? (uint16_t)in *2UL : 0xFFFF - ((uint16_t)in - 0x8000)*2UL;
       if (wave > threshold) {
         uint16_t index = 0 + pos + i;
         uint8_t s = ((uint16_t)wave - (uint16_t)threshold)*255UL / (0xFFFF - (uint16_t)threshold);
@@ -150,7 +160,35 @@ uint16_t spots_base(void) {
   return ws2812fx.getSpeed() / 255;
 }
 
-void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint32_t color) {
+
+bool isAnySegmentOn() {
+  bool channelActive = false;
+  for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
+    if (segmentState[i] == true) {
+      channelActive = true;
+      break;
+    }
+  }
+  return channelActive;
+}
+
+void powerLedStripe(bool s) {
+  if (s == true) {
+    //DPRINTLN("powering stripe ON");
+    digitalWrite(WSLED_ACTIVATE_PIN, HIGH);
+  } else {
+    //DPRINTLN("powering stripe OFF");
+    digitalWrite(WSLED_ACTIVATE_PIN, LOW);
+    digitalWrite(WSLED_PIN, HIGH);
+  }
+}
+
+void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint32_t color, uint8_t options) {
+    if (isAnySegmentOn() == false) {
+      if (color > 0) {
+        powerLedStripe(true);
+      }
+    }
 
     uint8_t segnum = channel2segnum[ch - 1];
 
@@ -168,12 +206,22 @@ void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint3
 
     //FX_MODE_CUSTOM_0 are the spots over the whole stripe length
     //all single segments must be removed
-    if (fx == FX_MODE_CUSTOM_0) ws2812fx.resetSegments();
+    if (fx == FX_MODE_CUSTOM_0) {
+      ws2812fx.resetSegments();
+      segnum = 0;
+    }
+
+    segmentState[segnum] = (color > 0);
 
     DPRINT("ws2812fx.setSegment(");DDEC(segnum);DPRINT(", ");DDEC(start);DPRINT(", ");DDEC(end);DPRINT(", ");DDEC(fx);DPRINT(", ");DHEX(color);DPRINT(", ");DDEC(s);DPRINTLN(", NO_OPTIONS)");
     ws2812fx.removeActiveSegment(segnum);
-    ws2812fx.setSegment(segnum, start, end, fx, color, s, NO_OPTIONS);
+    ws2812fx.setSegment(segnum, start, end, fx, color, s, options);
     ws2812fx.addActiveSegment(segnum);
+    //force immediate
+    ws2812fx.service();
+#ifdef MEMORY_FREE_H
+    DPRINT("freeMemory()=");DDECLN(freeMemory());
+#endif
 }
 
 class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHANNEL, OUList0, SwitchStateMachine>  {
@@ -185,51 +233,45 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
       virtual ~LEDOffDelayAlarm () {}
 
       void trigger (__attribute__ ((unused)) AlarmClock& clock)  {
-        chan.ledOff(true);
+        chan.segmentOff(true);
       }
   };
 
   private:
-    bool first, boot, on;
+    bool boot;
     uint8_t  r,g ,b,w;
     uint8_t  brightness;
     uint8_t  speed;
     uint8_t  fx;
+    uint8_t  options;
   protected:
     LEDOffDelayAlarm ledOffDelayAlarm;
     typedef ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHANNEL, OUList0, SwitchStateMachine> BaseChannel;
   public:
-    LEDChannel () : BaseChannel(), first(true), boot(true), on(false), r(0), g(0), b(0), w(0), brightness(0), speed(0), fx(0), ledOffDelayAlarm(*this) {}
+    LEDChannel () : BaseChannel(), boot(true), r(0), g(0), b(0), w(0), brightness(0), speed(0), fx(0), options(0), ledOffDelayAlarm(*this) {}
     virtual ~LEDChannel() {}
 
-    void setLedOffDelay(uint16_t dly) {
+    void setSegmentOffDelay(uint16_t dly) {
       DPRINT("set off delay ");DDECLN(dly);
       sysclock.cancel(ledOffDelayAlarm);
       ledOffDelayAlarm.set(dly);
       sysclock.add(ledOffDelayAlarm);
     }
 
-    void ledOn(bool setCh) {
-      on = true;
+    void segmentOn(bool setCh) {
       uint32_t c = (((uint32_t)w << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | ((uint32_t)b));
-      setSegment(number(), brightness, speed, fx, c);
+      setSegment(number(), brightness, speed, fx, c, options);
       if (setCh) BaseChannel::set( 0xc8, 0x00, 0xffff );
     }
 
-    void ledOff(bool setCh) {
-      on = false;
+    void segmentOff(bool setCh) {
       sysclock.cancel(ledOffDelayAlarm);
-      setSegment(number(), brightness,0,1,(uint32_t)0);
+      setSegment(number(), brightness,0,1,(uint32_t)0, 0);
       if (setCh) BaseChannel::set( 0x00, 0x00, 0xffff );
     }
 
-    bool isOn() {
-      return on;
-    }
-
     bool process (const ActionSetMsg& msg) {
-      BaseChannel::set( msg.value(), msg.ramp(), msg.delay() );
-      return true;
+      return BaseChannel::set( msg.value(), msg.ramp(), msg.delay() );
     }
 
     bool process (const ActionCommandMsg& msg) {
@@ -241,6 +283,7 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
         //2 = Speed
         //3 = FX Nr
         //4 - 7 = R/G/B/W
+        //8 = FX Optionen
  
         brightness  = msg.value(1);
         speed       = msg.value(2);
@@ -249,15 +292,23 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
         g           = msg.value(5);
         b           = msg.value(6);
         w           = msg.value(7);
+        options     = msg.value(8);
+
+        DPRINT(F("SPEED      "));DDECLN(speed);
+        DPRINT(F("BRIGHTNESS "));DDECLN(brightness);
+        DPRINT(F("EFFECT     "));DDECLN(fx);
+        DPRINT(F("OPTIONS    "));DDECLN(options);
+        DPRINT(F("R/G/B/W    "));DDEC(r);DPRINT("/");DDEC(g);DPRINT("/");DDEC(b);DPRINT("/");DDECLN(w);
+
  
         if (fx == 0) {
-          ledOff(true);
+          segmentOff(true);
         } else {
           uint16_t t = ((msg.value(msg.len() - 2)) << 8) + (msg.value(msg.len() - 1));
           if (t > 0 && t != 0x83CA) {
-            setLedOffDelay(AskSinBase::intTimeCvt(t));
+            setSegmentOffDelay(AskSinBase::intTimeCvt(t));
           }
-          ledOn(true);
+          segmentOn(true);
         }
       }
       return true;
@@ -278,7 +329,7 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
        lastmsgcnt = cnt;
        DPRINT("runPl ");DDECLN(number());
  
-       /*
+
        DPRINT(F("ACT_NUM     ")); DDECLN(pl.actNum());   // Speed
        DPRINT(F("ACT_INTENS  ")); DDECLN(pl.actIntens());// Helligkeit
        DPRINT(F("ACT_TYPE    ")); DDECLN(pl.actType());  // FX
@@ -286,8 +337,9 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
        DPRINT(F("ACT_COLOR_G ")); DDECLN(pl.actColorG());// G
        DPRINT(F("ACT_COLOR_B ")); DDECLN(pl.actColorB());// B
        DPRINT(F("ACT_COLOR_W ")); DDECLN(pl.actColorW());// W
+       DPRINT(F("ACT_OPTIONS ")); DDECLN(pl.actOptions());// FX Options
        DPRINT(F("OFFDELAY   "));  DDECLN(pl.offDly());   // Ausschaltverzögerung
-       */
+
 
        brightness  = pl.actIntens();
        speed       = pl.actNum();
@@ -296,13 +348,14 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
        g           = pl.actColorG();
        b           = pl.actColorB();
        w           = pl.actColorW();
+       options     = pl.actOptions();
  
        if (pl.actType() == 0) {
-         ledOff(true);
+         segmentOff(true);
        } else {
          if (pl.offDly() > 0)
-           setLedOffDelay(AskSinBase::byteTimeCvt(pl.offDly()));
-         ledOn(true);
+           setSegmentOffDelay(AskSinBase::byteTimeCvt(pl.offDly()));
+         segmentOn(true);
        }
       }
     }
@@ -367,9 +420,7 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
     }
 
     void init() {
-      ledOff(true);
-      //this->changed(true);
-      first = false;
+      segmentOff(true);
     }
 
     uint8_t flags () const {
@@ -385,12 +436,12 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
 
     virtual void switchState(__attribute__((unused)) uint8_t oldstate, __attribute__((unused)) uint8_t newstate, __attribute__((unused)) uint32_t delay) {
       if ( newstate == AS_CM_JT_OFF ) {
-        if (first == false ) {
-          this->ledOff(false);
+        if (boot == false ) {
+          this->segmentOff(false);
         }
       }
       if ( newstate == AS_CM_JT_ON ) {
-        this->ledOn(false);
+        this->segmentOn(false);
       }
       this->changed(true);
     }
@@ -433,9 +484,9 @@ void calculateLedCount() {
   uint16_t totalLeds     = 0;
 
   for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
-
-    uint16_t ledCount     = sdev.ledChannel(i).getList1().ledCount();
-    uint16_t nextLedCount = (i < NUM_CHANNELS - 1) ? sdev.ledChannel(i + 1).getList1().ledCount() : 1024;
+    segmentState[i] = false;
+    uint16_t ledCount     = min(sdev.ledChannel(i).getList1().ledCount(),1024);
+    uint16_t nextLedCount = (i < NUM_CHANNELS - 1) ? min(sdev.ledChannel(i + 1).getList1().ledCount(), 1024) : 1024;
 
     channel2segnum[i] = segmentNumber;
 
@@ -447,6 +498,7 @@ void calculateLedCount() {
     }
   }
   segmentCount = segmentNumber;
+  segmentState[segmentNumber] = 0;
   ws2812fx.updateLength(totalLeds);
   dumpLedStripe();
 }
@@ -477,20 +529,10 @@ void loop() {
   bool worked = hal.runready();
   bool poll = sdev.pollRadio();
 
-  bool channelActive = false;
-  for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
-    if (sdev.ledChannel(i).isOn() == true) {
-      channelActive = true;
-      break;
-    }
-  }
-
-  if (channelActive == true) {
-    digitalWrite(WSLED_ACTIVATE_PIN, HIGH);
-  } else {
-    digitalWrite(WSLED_ACTIVATE_PIN, LOW);
+  if (isAnySegmentOn() == false) {
+    powerLedStripe(false);
     if (worked == false && poll == false ) {
-#ifndef ARDUINO_ARCH_ESP32
+#if ( !(defined ARDUINO_ARCH_ESP32) && !(defined __AVR_ATmega128__))
       hal.activity.savePower<Idle<>>(hal);
 #endif
     }
