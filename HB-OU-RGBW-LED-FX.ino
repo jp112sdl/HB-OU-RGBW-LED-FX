@@ -161,7 +161,7 @@ uint16_t spots_base(void) {
 }
 
 
-bool isAnySegmentOn() {
+bool isAnySegmentActive() {
   bool channelActive = false;
   for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
     if (segmentState[i] == true) {
@@ -184,7 +184,7 @@ void powerLedStripe(bool s) {
 }
 
 void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint32_t color, uint8_t options) {
-    if (isAnySegmentOn() == false) {
+    if (isAnySegmentActive() == false) {
       if (color > 0) {
         powerLedStripe(true);
       }
@@ -529,7 +529,7 @@ void loop() {
   bool worked = hal.runready();
   bool poll = sdev.pollRadio();
 
-  if (isAnySegmentOn() == false) {
+  if (isAnySegmentActive() == false) {
     powerLedStripe(false);
     if (worked == false && poll == false ) {
 #if ( !(defined ARDUINO_ARCH_ESP32) && !(defined __AVR_ATmega128__))
