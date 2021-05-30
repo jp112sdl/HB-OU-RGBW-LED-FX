@@ -502,13 +502,13 @@ void calculateLedCount() {
     channel2segnum[i] = segmentNumber;
 
     if (ledCount < 1024) {
-      segmentStart[segmentNumber] = (segmentNumber == 0) ? 0 :  segmentEnd[segmentNumber - 1];
+      segmentStart[segmentNumber] = (segmentNumber == 0) ? 0 :  segmentEnd[segmentNumber - 1] + 1;
       segmentEnd  [segmentNumber] = segmentStart[segmentNumber] + ledCount - 1;
       totalLeds += ledCount;
       if (nextLedCount < 1024) segmentNumber++;
     }
   }
-  segmentCount = segmentNumber;
+  segmentCount = segmentNumber + 1;
   segmentState[segmentNumber] = 0;
   ws2812fx.updateLength(totalLeds);
   dumpLedStripe();
