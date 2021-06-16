@@ -532,7 +532,7 @@ void setup () {
 
   pinMode(WSLED_ACTIVATE_PIN, OUTPUT);
 
-  ws2812fx.setBrightness(128);
+  ws2812fx.setBrightness(0);
   ws2812fx.setCustomMode(0, spots_base);
 }
 
