@@ -196,6 +196,35 @@ void powerLedStripe(bool s) {
 #endif
 }
 
+class brightnessFadeAlarm : public Alarm {
+private:
+  uint8_t current_b, from_b, to_b;
+public:
+  brightnessFadeAlarm () : Alarm(0), current_b(0), from_b(0), to_b(0) {}
+  virtual ~brightnessFadeAlarm() {}
+
+  void start(uint8_t fromBrightness, uint8_t toBrightness) {
+    DPRINT("brightnessFadeAlarm start. From:");DDEC(fromBrightness);DPRINT(", To: ");DDECLN(toBrightness);
+    current_b = fromBrightness;
+    to_b = toBrightness;
+    sysclock.cancel(*this);
+    set(millis2ticks(2));
+    sysclock.add(*this);
+  }
+
+  virtual void trigger (AlarmClock& clock) {
+    if (current_b > to_b) current_b--;
+    else if (current_b < to_b) current_b++;
+    ws2812fx.setBrightness(current_b);
+    ws2812fx.service();
+    if (current_b != to_b) {
+      set(millis2ticks(1));
+      clock.add(*this);
+    }
+  }
+} brightnessFadeAlarm;
+
+
 void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint32_t color, uint8_t options) {
     if (isAnySegmentActive() == false) {
       if (color > 0) {
@@ -209,8 +238,15 @@ void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint3
     uint16_t end   = segmentEnd[segnum];
 
     //there is just one brightness value for the whole stripe
-    DPRINT("setSegment setBrightness: ");DDECLN(brightness);
     ws2812fx.setBrightness(brightness);
+   /* static uint8_t last_brightness = 0;
+    static uint8_t last_color = 0;
+    if (last_brightness != brightness || (last_color == 0 && color > 0 )) {
+      DPRINTLN("Start brightnessFadeAlarm");
+      brightnessFadeAlarm.start(last_brightness, brightness);
+    }
+    last_color = color;
+    last_brightness = brightness;*/
 
     //WS2812FX speed has a range from 0 ... 65535 (16bit), but we will only get 8 bit for the speed value
     uint16_t s = (uint16_t)speed * 255;
