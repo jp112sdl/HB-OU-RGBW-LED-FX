@@ -184,6 +184,7 @@ bool isAnySegmentActive() {
 }
 
 void powerLedStripe(bool s) {
+#ifdef WSLED_ACTIVATE_PIN
   if (s == true) {
     //DPRINTLN("powering stripe ON");
     digitalWrite(WSLED_ACTIVATE_PIN, HIGH);
@@ -192,6 +193,7 @@ void powerLedStripe(bool s) {
     digitalWrite(WSLED_ACTIVATE_PIN, LOW);
     digitalWrite(WSLED_PIN, HIGH);
   }
+#endif
 }
 
 void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint32_t color, uint8_t options) {
@@ -496,8 +498,8 @@ void calculateLedCount() {
 
   for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
     segmentState[i] = false;
-    uint16_t ledCount     = min(sdev.ledChannel(i).getList1().ledCount(),1024);
-    uint16_t nextLedCount = (i < NUM_CHANNELS - 1) ? min(sdev.ledChannel(i + 1).getList1().ledCount(), 1024) : 1024;
+    uint16_t ledCount     = min(sdev.ledChannel(i).getList1().ledCount(), (uint16_t)1024);
+    uint16_t nextLedCount = (i < NUM_CHANNELS - 1) ? min(sdev.ledChannel(i + 1).getList1().ledCount(), (uint16_t)1024) : 1024;
 
     channel2segnum[i] = segmentNumber;
 
@@ -530,7 +532,9 @@ void setup () {
 
   sdev.initDone();
 
+#ifdef WSLED_ACTIVATE_PIN
   pinMode(WSLED_ACTIVATE_PIN, OUTPUT);
+#endif
 
   ws2812fx.setBrightness(0);
   ws2812fx.setCustomMode(0, spots_base);
