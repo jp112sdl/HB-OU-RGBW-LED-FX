@@ -587,7 +587,7 @@ void loop() {
       hal.activity.savePower<Idle<>>(hal);
 #endif
     }
+  } else {
+    ws2812fx.service();
   }
-
-  ws2812fx.service();
 }
