@@ -79,7 +79,7 @@ WS2812FX ws2812fx(30, WSLED_PIN, NEO_GRBW + NEO_KHZ800);
 using namespace as;
 
 const struct DeviceInfo PROGMEM devinfo = {
-  {0xF3, 0x52, 0x00},     // Device ID
+  {0xF3, 0x52, 0x01},     // Device ID
   "JPLEDFX001",           // Device Serial
   {0xF3, 0x52},           // Device Model
   0x10,                   // Firmware Version
@@ -224,7 +224,7 @@ void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint3
 
     segmentState[segnum] = (color > 0);
 
-    DPRINT("ws2812fx.setSegment(");DDEC(segnum);DPRINT(", ");DDEC(start);DPRINT(", ");DDEC(end);DPRINT(", ");DDEC(fx);DPRINT(", ");DHEX(color);DPRINT(", ");DDEC(s);DPRINTLN(", NO_OPTIONS)");
+    DPRINT("ws2812fx.setSegment(");DDEC(segnum);DPRINT(", ");DDEC(start);DPRINT(", ");DDEC(end);DPRINT(", ");DDEC(fx);DPRINT(", ");DHEX(color);DPRINT(", ");DDEC(s);DPRINT(", ");DHEX(options);DPRINTLN(")");
     ws2812fx.removeActiveSegment(segnum);
     ws2812fx.setSegment(segnum, start, end, fx, color, s, options);
     ws2812fx.addActiveSegment(segnum);
