@@ -379,15 +379,16 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
        DPRINT("runPl ");DDECLN(number());
  
 
-       DPRINT(F("ACT_NUM     ")); DDECLN(pl.actNum());   // Speed
-       DPRINT(F("ACT_INTENS  ")); DDECLN(pl.actIntens());// Helligkeit
-       DPRINT(F("ACT_TYPE    ")); DDECLN(pl.actType());  // FX
-       DPRINT(F("ACT_COLOR_R ")); DDECLN(pl.actColorR());// R
-       DPRINT(F("ACT_COLOR_G ")); DDECLN(pl.actColorG());// G
-       DPRINT(F("ACT_COLOR_B ")); DDECLN(pl.actColorB());// B
-       DPRINT(F("ACT_COLOR_W ")); DDECLN(pl.actColorW());// W
+       DPRINT(F("ACT_NUM     ")); DDECLN(pl.actNum());    // Speed
+       DPRINT(F("ACT_INTENS  ")); DDECLN(pl.actIntens()); // Helligkeit
+       DPRINT(F("ACT_TYPE    ")); DDECLN(pl.actType());   // FX
+       DPRINT(F("ACT_COLOR_R ")); DDECLN(pl.actColorR()); // R
+       DPRINT(F("ACT_COLOR_G ")); DDECLN(pl.actColorG()); // G
+       DPRINT(F("ACT_COLOR_B ")); DDECLN(pl.actColorB()); // B
+       DPRINT(F("ACT_COLOR_W ")); DDECLN(pl.actColorW()); // W
        DPRINT(F("ACT_OPTIONS ")); DDECLN(pl.actOptions());// FX Options
-       DPRINT(F("OFFDELAY   "));  DDECLN(pl.offDly());   // Ausschaltverzögerung
+       DPRINT(F("ONTIME      ")); DDECLN(pl.onTime());    // Einschaltdauer
+       DPRINT(F("OFFDELAY    ")); DDECLN(pl.offDly());    // Ausschaltverzögerung
 
 
        brightness  = pl.actIntens();
@@ -398,12 +399,18 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
        b           = pl.actColorB();
        w           = pl.actColorW();
        options     = pl.actOptions();
+
+       uint8_t onTime = pl.onTime();
+       uint8_t offDly = pl.offDly();
  
        if (pl.actType() == 0) {
          segmentOff(true);
        } else {
-         if (pl.offDly() > 0)
-           setSegmentOffDelay(AskSinBase::byteTimeCvt(pl.offDly()));
+         if (offDly > 0 || onTime < 255) {
+           // Summe aus Einschaltdauer und Ausschaltverzögerung
+           // nicht gesetzte Ausschaltverzögerung = 255 !
+           setSegmentOffDelay(AskSinBase::byteTimeCvt(offDly) + AskSinBase::byteTimeCvt(onTime < 255 ? onTime : 0));
+         }
          segmentOn(true);
        }
       }
