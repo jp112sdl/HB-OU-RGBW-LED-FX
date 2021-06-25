@@ -181,8 +181,8 @@ void powerLedStripe(bool s) {
     digitalWrite(WSLED_ACTIVATE_PIN, HIGH);
   } else {
     //DPRINTLN("powering stripe OFF");
-    digitalWrite(WSLED_ACTIVATE_PIN, LOW);
     digitalWrite(WSLED_PIN, HIGH);
+    digitalWrite(WSLED_ACTIVATE_PIN, LOW);
   }
 #endif
 }
