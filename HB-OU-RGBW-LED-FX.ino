@@ -128,6 +128,7 @@ uint8_t  channel2segnum[NUM_CHANNELS];
 uint8_t  segmentStart[NUM_CHANNELS];
 uint8_t  segmentEnd[NUM_CHANNELS];
 uint8_t  segmentCount = 0;
+uint8_t  stripeBrightness = 0;
 bool     segmentState[NUM_CHANNELS];
 
 void __attribute__((weak)) calculateLedCount();
@@ -141,7 +142,7 @@ uint16_t spots_base(void) {
   uint16_t threshold = (255 - (ws2812fx.getSpeed() / 255)) << 8;
   ws2812fx.fill(0);
   uint16_t maxZones = ws2812fx.getLength() >> 2;
-  uint16_t zones = 1UL + (((uint16_t)ws2812fx.getBrightness() * maxZones) >> 8);
+  uint16_t zones = 1UL + (((uint16_t)stripeBrightness * maxZones) >> 8);
   uint16_t zoneLen = ws2812fx.getLength() / zones;
   uint16_t offset = (ws2812fx.getLength() - zones * zoneLen) >> 1;
 
@@ -229,15 +230,19 @@ void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint3
     uint16_t end   = segmentEnd[segnum];
 
     //there is just one brightness value for the whole stripe
-    ws2812fx.setBrightness(brightness);
-   /* static uint8_t last_brightness = 0;
+    stripeBrightness = brightness;
+    ws2812fx.setBrightness(stripeBrightness);
+
+    /*
+    static uint8_t last_brightness = 0;
     static uint8_t last_color = 0;
     if (last_brightness != brightness || (last_color == 0 && color > 0 )) {
       DPRINTLN("Start brightnessFadeAlarm");
       brightnessFadeAlarm.start(last_brightness, brightness);
     }
     last_color = color;
-    last_brightness = brightness;*/
+    last_brightness = brightness;
+    */
 
     //WS2812FX speed has a range from 0 ... 65535 (16bit), but we will only get 8 bit for the speed value
     uint16_t s = (uint16_t)speed * 255;
