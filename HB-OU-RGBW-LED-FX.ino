@@ -31,15 +31,6 @@
   #define CC1101_GDO0         6 //PE6
 #endif
 
-#ifdef __AVR_ATmega328P__
-  #define CONFIG_BUTTON_PIN   8
-  #define WSLED_PIN           9
-  #define WSLED_ACTIVATE_PIN  6
-  #define ONBOARD_LED_PIN1    4
-  #define CC1101_CS          10
-  #define CC1101_GDO0         2
-#endif
-
 #ifdef __AVR_ATmega644P__        //Pin Definitionen (when using 644P(A): use Standard Pinout)
   #define CONFIG_BUTTON_PIN   1  //PB1
   #define WSLED_PIN          18  //PC2
