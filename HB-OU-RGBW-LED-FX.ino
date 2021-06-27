@@ -125,68 +125,13 @@ class OUList3 : public SwitchList3Tmpl<SwPeerListEx> {
 };
 
 uint8_t  channel2segnum[NUM_CHANNELS];
-uint8_t  segmentStart[NUM_CHANNELS];
-uint8_t  segmentEnd[NUM_CHANNELS];
-uint8_t  segmentCount = 0;
+uint8_t  segmentStart  [NUM_CHANNELS];
+uint8_t  segmentEnd    [NUM_CHANNELS];
+uint8_t  segmentCount     = 0;
 uint8_t  stripeBrightness = 0;
-bool     segmentState[NUM_CHANNELS];
+bool     segmentState  [NUM_CHANNELS];
 
 void __attribute__((weak)) calculateLedCount();
-
-/*uint16_t triwave16(uint16_t in) {
-  if ((uint16_t)in < 0x8000) return in *2UL;
-  return 0xFFFF - ((uint16_t)in - 0x8000)*2UL;
-}*/
-
-uint16_t spots_base(void) {
-  uint16_t threshold = (255 - (ws2812fx.getSpeed() / 255)) << 8;
-  ws2812fx.fill(0);
-  uint16_t maxZones = ws2812fx.getLength() >> 2;
-  uint16_t zones = 1UL + (((uint16_t)stripeBrightness * maxZones) >> 8);
-  uint16_t zoneLen = ws2812fx.getLength() / zones;
-  uint16_t offset = (ws2812fx.getLength() - zones * zoneLen) >> 1;
-
-  for (uint16_t z = 0; z < zones; z++) {
-    uint16_t pos = offset + z * zoneLen;
-    for (uint16_t i = 0; i < zoneLen; i++) {
-      uint32_t in = ((uint32_t)i * 0xFFFF) / (uint32_t)zoneLen;
-      //uint16_t wave = triwave16(in);
-      uint16_t wave = (uint16_t)in < 0x8000 ? (uint16_t)in *2UL : 0xFFFF - ((uint16_t)in - 0x8000)*2UL;
-      if (wave > threshold) {
-        uint16_t index = 0 + pos + i;
-        uint8_t s = ((uint16_t)wave - (uint16_t)threshold)*255UL / (0xFFFF - (uint16_t)threshold);
-        ws2812fx.setPixelColor(index, ws2812fx.color_blend(ws2812fx.getColor(),0x00000000,255-s));
-      }
-    }
-  }
-
-  return ws2812fx.getSpeed() / 255;
-}
-
-
-bool isAnySegmentActive() {
-  bool channelActive = false;
-  for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
-    if (segmentState[i] == true) {
-      channelActive = true;
-      break;
-    }
-  }
-  return channelActive;
-}
-
-void powerLedStripe(bool s) {
-#ifdef WSLED_ACTIVATE_PIN
-  if (s == true) {
-    //DPRINTLN("powering stripe ON");
-    digitalWrite(WSLED_ACTIVATE_PIN, HIGH);
-  } else {
-    //DPRINTLN("powering stripe OFF");
-    digitalWrite(WSLED_PIN, HIGH);
-    digitalWrite(WSLED_ACTIVATE_PIN, LOW);
-  }
-#endif
-}
 
 class brightnessFadeAlarm : public Alarm {
 private:
@@ -216,61 +161,8 @@ public:
   }
 } brightnessFadeAlarm;
 
-
-void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint32_t color, uint8_t options) {
-    if (isAnySegmentActive() == false) {
-      if (color > 0) {
-        powerLedStripe(true);
-      }
-    }
-
-    uint8_t segnum = channel2segnum[ch - 1];
-
-    uint16_t start = segmentStart[segnum];
-    uint16_t end   = segmentEnd[segnum];
-
-    //there is just one brightness value for the whole stripe
-    stripeBrightness = brightness;
-    ws2812fx.setBrightness(stripeBrightness);
-
-    /*
-    static uint8_t last_brightness = 0;
-    static uint8_t last_color = 0;
-    if (last_brightness != brightness || (last_color == 0 && color > 0 )) {
-      DPRINTLN("Start brightnessFadeAlarm");
-      brightnessFadeAlarm.start(last_brightness, brightness);
-    }
-    last_color = color;
-    last_brightness = brightness;
-    */
-
-    //WS2812FX speed has a range from 0 ... 65535 (16bit), but we will only get 8 bit for the speed value
-    uint16_t s = (uint16_t)speed * 255;
-
-    if (fx > 0) fx = fx - 1;
-
-    //FX_MODE_CUSTOM_0 are the spots over the whole stripe length
-    //all single segments must be removed
-    if (fx == FX_MODE_CUSTOM_0) {
-      ws2812fx.resetSegments();
-      segnum = 0;
-    }
-
-    segmentState[segnum] = (color > 0);
-
-    DPRINT("ws2812fx.setSegment(");DDEC(segnum);DPRINT(", ");DDEC(start);DPRINT(", ");DDEC(end);DPRINT(", ");DDEC(fx);DPRINT(", ");DHEX(color);DPRINT(", ");DDEC(s);DPRINT(", ");DHEX(options);DPRINTLN(")");
-    ws2812fx.removeActiveSegment(segnum);
-    ws2812fx.setSegment(segnum, start, end, fx, color, s, options);
-    ws2812fx.addActiveSegment(segnum);
-    //force immediate
-    ws2812fx.service();
-#ifdef MEMORY_FREE_H
-    DPRINT("freeMemory()=");DDECLN(freeMemory());
-#endif
-}
-
 class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHANNEL, OUList0, SwitchStateMachine>  {
-  public:
+ public:
   class LEDOffDelayAlarm : public Alarm {
       LEDChannel& chan;
     public:
@@ -290,27 +182,35 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
     uint8_t  fx;
     uint8_t  options;
   protected:
+
     LEDOffDelayAlarm ledOffDelayAlarm;
     typedef ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHANNEL, OUList0, SwitchStateMachine> BaseChannel;
   public:
     LEDChannel () : BaseChannel(), boot(true), r(0), g(0), b(0), w(0), brightness(0), speed(0), fx(0), options(0), ledOffDelayAlarm(*this) {}
     virtual ~LEDChannel() {}
 
-    void setSegmentOffDelay(uint16_t dly) {
-      DPRINT("set off delay ");DDECLN(dly);
+    void cancelOffDelay() {
+      DPRINT("Ch.");DDEC(number());DPRINTLN(": cancelOffDelay()");
       sysclock.cancel(ledOffDelayAlarm);
-      ledOffDelayAlarm.set(dly);
-      sysclock.add(ledOffDelayAlarm);
     }
 
-    void segmentOn(bool setCh) {
+    void segmentOn(bool setCh, uint32_t dly) {
       uint32_t c = (((uint32_t)w << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | ((uint32_t)b));
       setSegment(number(), brightness, speed, fx, c, options);
-      if (setCh) BaseChannel::set( 0xc8, 0x00, 0xffff );
+
+      if (setCh) {
+        cancelOffDelay();
+        if (dly > DELAY_NO && dly < DELAY_INFINITE) {
+          DPRINT("set off delay ");DDECLN(dly);
+          ledOffDelayAlarm.set(dly);
+          sysclock.add(ledOffDelayAlarm);
+        }
+        BaseChannel::set( 0xc8, 0x00, 0xffff );
+      }
     }
 
     void segmentOff(bool setCh) {
-      sysclock.cancel(ledOffDelayAlarm);
+      cancelOffDelay();
       setSegment(number(), brightness,0,1,(uint32_t)0, 0);
       if (setCh) BaseChannel::set( 0x00, 0x00, 0xffff );
     }
@@ -349,11 +249,12 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
         if (fx == 0) {
           segmentOff(true);
         } else {
+          uint32_t dly = DELAY_INFINITE;
           uint16_t t = ((msg.value(msg.len() - 2)) << 8) + (msg.value(msg.len() - 1));
           if (t > 0 && t != 0x83CA) {
-            setSegmentOffDelay(AskSinBase::intTimeCvt(t));
+            dly=AskSinBase::intTimeCvt(t);
           }
-          segmentOn(true);
+          segmentOn(true, dly);
         }
       }
       return true;
@@ -402,12 +303,13 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
        if (pl.actType() == 0) {
          segmentOff(true);
        } else {
+         uint32_t dly = DELAY_INFINITE;
          if (offDly > 0 || onTime < 255) {
            // Summe aus Einschaltdauer und Ausschaltverzögerung
            // nicht gesetzte Ausschaltverzögerung = 255 !
-           setSegmentOffDelay(AskSinBase::byteTimeCvt(offDly) + AskSinBase::byteTimeCvt(onTime < 255 ? onTime : 0));
+           dly =AskSinBase::byteTimeCvt(offDly) + AskSinBase::byteTimeCvt(onTime < 255 ? onTime : 0);
          }
-         segmentOn(true);
+         segmentOn(true, dly);
        }
       }
     }
@@ -493,16 +395,21 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
         }
       }
       if ( newstate == AS_CM_JT_ON ) {
-        this->segmentOn(false);
+        this->segmentOn(false, delay);
       }
       this->changed(true);
+    }
+
+    void sendSwitchOffState() {
+      if (this->status() == 200) {
+        BaseChannel::set( 0x00, 0x00, 0xffff );
+      }
     }
 };
 
 class OUDevice : public ChannelDevice<Hal, VirtBaseChannel<Hal, OUList0>, NUM_CHANNELS, OUList0> {
   public:
-    VirtChannel<Hal, LEDChannel, OUList0> ledc[6];
-  public:
+    VirtChannel<Hal, LEDChannel, OUList0> ledc[NUM_CHANNELS];
     typedef ChannelDevice<Hal, VirtBaseChannel<Hal, OUList0>, NUM_CHANNELS, OUList0> DeviceType;
     OUDevice (const DeviceInfo& info, uint16_t addr) : DeviceType(info, addr) {
       for (uint8_t i = 0; i < NUM_CHANNELS; i++) DeviceType::registerChannel(ledc[i], i+1);
@@ -518,6 +425,118 @@ class OUDevice : public ChannelDevice<Hal, VirtBaseChannel<Hal, OUList0>, NUM_CH
 
 OUDevice sdev(devinfo, 0x20);
 ConfigButton<OUDevice> cfgBtn(sdev);
+
+uint16_t spots_base(void) {
+  ws2812fx.setBrightness(255);
+  uint16_t threshold = (255 - (ws2812fx.getSpeed() / 255)) << 8;
+  ws2812fx.fill(0);
+  uint16_t maxZones = ws2812fx.getLength() >> 2;
+  uint16_t zones = 1UL + (((uint16_t)stripeBrightness * maxZones) >> 8);
+  uint16_t zoneLen = ws2812fx.getLength() / zones;
+  uint16_t offset = (ws2812fx.getLength() - zones * zoneLen) >> 1;
+
+  for (uint16_t z = 0; z < zones; z++) {
+    uint16_t pos = offset + z * zoneLen;
+    for (uint16_t i = 0; i < zoneLen; i++) {
+      uint32_t in = ((uint32_t)i * 0xFFFF) / (uint32_t)zoneLen;
+      //uint16_t wave = triwave16(in);
+      uint16_t wave = (uint16_t)in < 0x8000 ? (uint16_t)in *2UL : 0xFFFF - ((uint16_t)in - 0x8000)*2UL;
+      if (wave > threshold) {
+        uint16_t index = 0 + pos + i;
+        uint8_t s = ((uint16_t)wave - (uint16_t)threshold)*255UL / (0xFFFF - (uint16_t)threshold);
+        ws2812fx.setPixelColor(index, ws2812fx.color_blend(ws2812fx.getColor(),0x00000000,255-s));
+      }
+    }
+  }
+
+  return ws2812fx.getSpeed() / 255;
+}
+
+bool isAnySegmentActive() {
+  bool channelActive = false;
+  for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
+    if (segmentState[i] == true) {
+      channelActive = true;
+      break;
+    }
+  }
+  return channelActive;
+}
+
+void powerLedStripe(bool s) {
+#ifdef WSLED_ACTIVATE_PIN
+  if (s == true) {
+    //DPRINTLN("powering stripe ON");
+    digitalWrite(WSLED_ACTIVATE_PIN, HIGH);
+  } else {
+    //DPRINTLN("powering stripe OFF");
+    digitalWrite(WSLED_PIN, HIGH);
+    digitalWrite(WSLED_ACTIVATE_PIN, LOW);
+    // nur um sicher zu gehen, dass auch alle Kanäle in der CCU auf "AUS" stehen.
+  }
+#endif
+  if (s == false) for (uint8_t i = 0; i < NUM_CHANNELS; i++) sdev.ledChannel(i).sendSwitchOffState();
+}
+
+void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint32_t color, uint8_t options) {
+    if (isAnySegmentActive() == false) {
+      if (color > 0) {
+        powerLedStripe(true);
+      }
+    }
+
+    uint8_t segnum = channel2segnum[ch - 1];
+
+    for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
+      if (channel2segnum[i] == segnum) {
+        if (i != ch-1) {
+          sdev.ledChannel(i).cancelOffDelay();
+        }
+      }
+    }
+
+    uint16_t start = segmentStart[segnum];
+    uint16_t end   = segmentEnd[segnum];
+
+    //there is just one brightness value for the whole stripe
+    stripeBrightness = brightness;
+    ws2812fx.setBrightness(stripeBrightness);
+
+    /*
+    static uint8_t last_brightness = 0;
+    static uint8_t last_color = 0;
+    if (last_brightness != brightness || (last_color == 0 && color > 0 )) {
+      DPRINTLN("Start brightnessFadeAlarm");
+      brightnessFadeAlarm.start(last_brightness, brightness);
+    }
+    last_color = color;
+    last_brightness = brightness;
+    */
+
+    //WS2812FX speed has a range from 0 ... 65535 (16bit), but we will only get 8 bit for the speed value
+    uint16_t s = (uint16_t)speed * 255;
+
+    if (fx > 0) fx = fx - 1;
+
+    //FX_MODE_CUSTOM_0 are the spots over the whole stripe length
+    //all single segments must be removed
+    if (fx == FX_MODE_CUSTOM_0) {
+      ws2812fx.resetSegments();
+      segnum = 0;
+    }
+
+    segmentState[segnum] = (color > 0);
+
+    DPRINT("ws2812fx.setSegment(");DDEC(segnum);DPRINT(", ");DDEC(start);DPRINT(", ");DDEC(end);DPRINT(", ");DDEC(fx);DPRINT(", ");DHEX(color);DPRINT(", ");DDEC(s);DPRINT(", ");DHEX(options);DPRINTLN(")");
+    ws2812fx.removeActiveSegment(segnum);
+    ws2812fx.setSegment(segnum, start, end, fx, color, s, options);
+    ws2812fx.addActiveSegment(segnum);
+    //force immediate
+    ws2812fx.service();
+#ifdef MEMORY_FREE_H
+    DPRINT("freeMemory()=");DDECLN(freeMemory());
+#endif
+}
 
 void dumpLedStripe() {
   for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
