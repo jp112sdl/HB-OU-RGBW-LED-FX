@@ -465,6 +465,7 @@ bool isAnySegmentActive() {
 }
 
 void powerLedStripe(bool s) {
+  static bool last_s = false;
 #ifdef WSLED_ACTIVATE_PIN
   if (s == true) {
     //DPRINTLN("powering stripe ON");
@@ -476,7 +477,12 @@ void powerLedStripe(bool s) {
     // nur um sicher zu gehen, dass auch alle Kanäle in der CCU auf "AUS" stehen.
   }
 #endif
-  if (s == false) for (uint8_t i = 0; i < NUM_CHANNELS; i++) sdev.ledChannel(i).sendSwitchOffState();
+  if (last_s != s) {
+    DPRINT("powerLedStripe "); DDECLN(s);
+    last_s = s;
+    if (s == false) for (uint8_t i = 0; i < NUM_CHANNELS; i++) sdev.ledChannel(i).sendSwitchOffState();
+  };
+
 }
 
 void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint32_t color, uint8_t options) {
