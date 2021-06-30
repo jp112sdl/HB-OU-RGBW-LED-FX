@@ -131,18 +131,16 @@ uint8_t  segmentCount     = 0;
 uint8_t  stripeBrightness = 0;
 bool     segmentState  [NUM_CHANNELS];
 
-void __attribute__((weak)) calculateLedCount();
-
+/* not used
 class brightnessFadeAlarm : public Alarm {
 private:
-  uint8_t current_b, from_b, to_b;
+  uint8_t to_b;
 public:
-  brightnessFadeAlarm () : Alarm(0), current_b(0), from_b(0), to_b(0) {}
+  brightnessFadeAlarm () : Alarm(0),  to_b(0) {}
   virtual ~brightnessFadeAlarm() {}
 
-  void start(uint8_t fromBrightness, uint8_t toBrightness) {
-    DPRINT("brightnessFadeAlarm start. From:");DDEC(fromBrightness);DPRINT(", To: ");DDECLN(toBrightness);
-    current_b = fromBrightness;
+  void startFade(uint8_t toBrightness) {
+    DPRINT("brightnessFadeAlarm start. To: ");DDECLN(toBrightness);
     to_b = toBrightness;
     sysclock.cancel(*this);
     set(millis2ticks(2));
@@ -150,16 +148,18 @@ public:
   }
 
   virtual void trigger (AlarmClock& clock) {
+    uint8_t current_b = ws2812fx.getBrightness();
     if (current_b > to_b) current_b--;
     else if (current_b < to_b) current_b++;
     ws2812fx.setBrightness(current_b);
-    ws2812fx.service();
     if (current_b != to_b) {
+      //DPRINT("*");
       set(millis2ticks(1));
       clock.add(*this);
     }
   }
 } brightnessFadeAlarm;
+*/
 
 class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHANNEL, OUList0, SwitchStateMachine>  {
  public:
@@ -500,18 +500,8 @@ void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint3
 
     //there is just one brightness value for the whole stripe
     stripeBrightness = brightness;
-    ws2812fx.setBrightness(stripeBrightness);
 
-    /*
-    static uint8_t last_brightness = 0;
-    static uint8_t last_color = 0;
-    if (last_brightness != brightness || (last_color == 0 && color > 0 )) {
-      DPRINTLN("Start brightnessFadeAlarm");
-      brightnessFadeAlarm.start(last_brightness, brightness);
-    }
-    last_color = color;
-    last_brightness = brightness;
-    */
+    ws2812fx.setBrightness(stripeBrightness);
 
     //WS2812FX speed has a range from 0 ... 65535 (16bit), but we will only get 8 bit for the speed value
     uint16_t s = (uint16_t)speed * 255;
