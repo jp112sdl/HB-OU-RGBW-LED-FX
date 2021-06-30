@@ -453,6 +453,7 @@ uint16_t spots_base(void) {
 }
 
 bool isAnySegmentActive() {
+  if (ws2812fx.getBrightness() == 0) return false;
   bool channelActive = false;
   for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
     if (segmentState[i] == true) {
