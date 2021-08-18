@@ -40,7 +40,7 @@
   #define CC1101_GDO0        10  //PD2
 #endif
 
-#ifdef __AVR_ATmega1284P__       //Pin Definitionen (when using 128P: use Standard Pinout)
+#ifdef __AVR_ATmega1284P__       //Pin Definitionen (when using 1284P: use Standard Pinout)
                                  //on deimos' HB-UNI-644
   #define CONFIG_BUTTON_PIN  13  //PD5
   #define WSLED_PIN          18  //PC2
@@ -68,6 +68,9 @@ WS2812FX ws2812fx(30, WSLED_PIN, NEO_GRBW + NEO_KHZ800);
 #define PEERS_PER_LED_CHANNEL  10
 
 using namespace as;
+
+__attribute__((weak)) void setSegment(uint8_t ch, uint8_t brightness, uint8_t speed, uint8_t fx, uint32_t color, uint8_t options);
+__attribute__((weak)) void calculateLedCount();
 
 const struct DeviceInfo PROGMEM devinfo = {
   {0xF3, 0x52, 0x01},     // Device ID
