@@ -22,6 +22,13 @@
 #include <WS2812FX.h>
 
 #ifdef __AVR_ATmega128__
+  /*
+   * modify Adafruit_NeoPixel.cpp:
+   * #if defined(PORTF)
+   * #undef PORTF
+   * #endif
+   */
+
   //#include <MemoryFree.h>
   #define CONFIG_BUTTON_PIN   7 //PE7
   #define WSLED_PIN          15 //PB7
