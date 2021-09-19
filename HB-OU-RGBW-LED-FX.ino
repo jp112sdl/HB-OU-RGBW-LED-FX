@@ -217,12 +217,14 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
         }
         BaseChannel::set( 0xc8, 0x00, 0xffff );
       }
+      state = AS_CM_JT_ON;
     }
 
     void segmentOff(bool setCh) {
       cancelOffDelay();
       setSegment(number(), brightness,0,1,(uint32_t)0, 0);
       if (setCh) BaseChannel::set( 0x00, 0x00, 0xffff );
+      state = AS_CM_JT_OFF;
     }
 
     bool process (const ActionSetMsg& msg) {
@@ -310,7 +312,7 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
        uint8_t onTime = pl.onTime();
        uint8_t offDly = pl.offDly();
  
-       if (pl.actType() == 0) {
+       if (pl.actType() == 0 || state == AS_CM_JT_ON) {
          segmentOff(true);
        } else {
          uint32_t dly = DELAY_INFINITE;
@@ -376,7 +378,17 @@ class LEDChannel : public ActorChannel<Hal, LEDList1, OUList3, PEERS_PER_LED_CHA
       if ( l3.valid() == true ) {
         typename OUList3::PeerList pl = lg ? l3.lg() : l3.sh();
         if (lg == false || pl.multiExec() == false ) {
-          runPl(pl, cnt);
+          switch (pl.actionType()) {
+          case AS_CM_ACTIONTYPE_JUMP_TO_TARGET:
+            runPl(pl, cnt);
+            break;
+          case AS_CM_ACTIONTYPE_TOGGLE_TO_COUNTER:
+            if ((cnt & 0x01) == 0x01) runPl(pl, cnt); else this->segmentOff(true);
+            break;
+          case AS_CM_ACTIONTYPE_TOGGLE_INVERSE_TO_COUNTER:
+            if ((cnt & 0x01) == 0x00) runPl(pl, cnt); else this->segmentOff(true);
+            break;
+          }
         }
         return true;
       }
