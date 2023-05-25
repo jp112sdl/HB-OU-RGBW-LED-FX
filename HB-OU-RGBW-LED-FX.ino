@@ -451,7 +451,7 @@ ConfigButton<OUDevice> cfgBtn(sdev);
 uint16_t spots_base(void) {
   ws2812fx.setBrightness(255);
   uint16_t threshold = (255 - (ws2812fx.getSpeed() / 255)) << 8;
-  ws2812fx.fill(0);
+  ws2812fx.fill(0,0,0);
   uint16_t maxZones = ws2812fx.getLength() >> 2;
   uint16_t zones = 1UL + (((uint16_t)stripeBrightness * maxZones) >> 8);
   uint16_t zoneLen = ws2812fx.getLength() / zones;
